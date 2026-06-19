@@ -7,6 +7,10 @@ import rateLimit from 'express-rate-limit';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import dotenv from 'dotenv';
+import { indexFile, searchChunks } from './search/indexer.js';
+
+dotenv.config();
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -92,6 +96,9 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
     const finalPath = path.join(uploadDir, finalFilename);
     fs.renameSync(tempPath, finalPath);
 
+    // Fire and forget indexing
+    indexFile(finalFilename).catch(err => console.error('Background indexing error:', err));
+
     res.status(201).json({ filename: finalFilename });
   } catch (error) {
     if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
@@ -123,6 +130,33 @@ app.delete('/api/files/:filename', (req, res) => {
     console.error('Delete error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
+});
+
+app.get('/api/search', async (req, res) => {
+  const { q, limit } = req.query;
+  if (!q) {
+    return res.status(400).json({ error: 'Query parameter "q" is required' });
+  }
+
+  try {
+    const limitNum = parseInt(limit, 10) || 5;
+    const results = await searchChunks(q, limitNum);
+    res.json({ results });
+  } catch (error) {
+    console.error('Search error:', error);
+    res.status(500).json({ error: 'Search failed' });
+  }
+});
+
+app.get('/api/files/:filename', (req, res) => {
+  const { filename } = req.params;
+  const filePath = path.join(uploadDir, filename);
+
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: 'File not found' });
+  }
+
+  res.sendFile(filePath);
 });
 
 app.listen(port, '0.0.0.0', () => {
