@@ -4,7 +4,7 @@
 cd "$(dirname "$0")"
 
 echo "Starting Soko with nohup..."
-nohup npm start > nohup.out 2>&1 &
+nohup node server.js > nohup.out 2>&1 &
 PID=$!
 echo $PID > soko.pid
 

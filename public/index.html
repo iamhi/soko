@@ -1,52 +1,169 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Markdown Vault</title>
-    <meta name="description" content="Local Markdown Vault">
-    <link rel="stylesheet" href="style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
-</head>
-<body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Markdown Vault & Semantic Search</title>
+    <meta name="description" content="Local Markdown Vault with Ollama Semantic Embeddings" />
+    <link rel="stylesheet" href="style.css" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
     <div class="background-effect"></div>
     <div class="container">
-        <header>
-            <h1>Markdown Vault</h1>
-            <p class="subtitle">Secure Local Storage</p>
-        </header>
+      <header>
+        <h1>Markdown Vault</h1>
+        <p class="subtitle">Secure Local Storage & Semantic Search Engine</p>
+      </header>
 
-        <main>
-            <section class="glass-panel text-section">
-                <h2>Create from Text</h2>
-                <form id="text-form">
-                    <div class="input-wrapper">
-                        <input type="text" id="text-filename" placeholder="Filename (e.g., notes.md)">
-                    </div>
-                    <div class="input-wrapper">
-                        <textarea id="text-content" placeholder="Paste your markdown content here..." rows="8" required></textarea>
-                    </div>
-                    <button type="submit" class="btn primary-btn" id="text-btn">Create & Store</button>
-                    <div id="text-status" class="status-msg"></div>
-                </form>
-            </section>
+      <!-- Ollama Connection Status Bar -->
+      <section class="glass-panel status-bar" id="ollama-status-panel">
+        <div class="status-header">
+          <div class="status-indicator">
+            <span class="status-dot offline" id="status-dot"></span>
+            <span id="status-text">Checking Ollama connection...</span>
+          </div>
+          <button type="button" class="btn secondary-btn compact-btn" id="refresh-status-btn">
+            Refresh Status
+          </button>
+        </div>
+        <div class="status-details hidden" id="status-details">
+          <div class="detail-item"><strong>Host:</strong> <span id="ollama-host-val">-</span></div>
+          <div class="detail-item">
+            <strong>Active Model:</strong> <span id="ollama-model-val">-</span>
+          </div>
+          <div class="detail-item">
+            <strong>Installed Models:</strong>
+            <div class="pills-container" id="ollama-models-pills"></div>
+          </div>
+        </div>
+      </section>
 
-            <section class="glass-panel upload-section">
-                <h2>Ingest Document</h2>
-                <form id="upload-form">
-                    <div class="file-input-wrapper">
-                        <input type="file" id="file-input" accept=".md" required>
-                        <label for="file-input" class="file-label">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-                            <span>Choose a Markdown File</span>
-                        </label>
-                    </div>
-                    <button type="submit" class="btn primary-btn" id="upload-btn">Upload to Vault</button>
-                    <div id="upload-status" class="status-msg"></div>
-                </form>
-            </section>
-        </main>
+      <main>
+        <!-- Semantic Search Section -->
+        <section class="glass-panel search-section">
+          <h2>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="var(--primary)"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            Semantic Search
+          </h2>
+          <form id="search-form">
+            <div class="search-input-group">
+              <div class="input-wrapper search-wrapper">
+                <input
+                  type="text"
+                  id="search-query"
+                  placeholder="Ask anything about your vault documents (e.g. 'What are our goals?')"
+                  required
+                />
+              </div>
+              <button type="submit" class="btn primary-btn" id="search-btn">
+                <span>Search</span>
+              </button>
+            </div>
+            <div class="search-options">
+              <label for="search-limit">Top Results:</label>
+              <input type="range" id="search-limit" min="1" max="10" value="3" />
+              <output class="range-val" id="search-limit-val">3</output>
+            </div>
+          </form>
+          <div id="search-results" class="results-container"></div>
+        </section>
+
+        <!-- Document list section -->
+        <section class="glass-panel files-section">
+          <h2>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="var(--secondary)"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+              <line x1="16" y1="13" x2="8" y2="13"></line>
+              <line x1="16" y1="17" x2="8" y2="17"></line>
+              <polyline points="10 9 9 9 8 9"></polyline>
+            </svg>
+            Vault Documents
+          </h2>
+          <div id="files-list-container" class="files-list-container">
+            <div class="loading-spinner">Loading vault documents...</div>
+          </div>
+        </section>
+
+        <!-- Ingestion Forms Grid -->
+        <div class="form-row">
+          <section class="glass-panel text-section">
+            <h2>Create from Text</h2>
+            <form id="text-form">
+              <div class="input-wrapper">
+                <input type="text" id="text-filename" placeholder="Filename (e.g., notes.md)" />
+              </div>
+              <div class="input-wrapper">
+                <textarea
+                  id="text-content"
+                  placeholder="Paste your markdown content here..."
+                  rows="8"
+                  required
+                ></textarea>
+              </div>
+              <button type="submit" class="btn primary-btn" id="text-btn">Create & Store</button>
+              <div id="text-status" class="status-msg"></div>
+            </form>
+          </section>
+
+          <section class="glass-panel upload-section">
+            <h2>Ingest Document</h2>
+            <form id="upload-form">
+              <div class="file-input-wrapper">
+                <input type="file" id="file-input" accept=".md" required />
+                <label for="file-input" class="file-label">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="17 8 12 3 7 8"></polyline>
+                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                  </svg>
+                  <span>Choose a Markdown File</span>
+                </label>
+              </div>
+              <button type="submit" class="btn primary-btn" id="upload-btn">Upload to Vault</button>
+              <div id="upload-status" class="status-msg"></div>
+            </form>
+          </section>
+        </div>
+      </main>
     </div>
     <script src="app.js"></script>
-</body>
+  </body>
 </html>

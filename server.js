@@ -7,7 +7,11 @@ import rateLimit from 'express-rate-limit';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import dotenv from 'dotenv';
+import { listIndexedFiles, indexFile, removeFileFromIndex, searchIndex } from './db.js';
+import { checkOllamaConnection, generateEmbedding } from './ollama.js';
 
+dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -20,9 +24,9 @@ app.use(
     contentSecurityPolicy: {
       useDefaults: true,
       directives: {
-        "upgrade-insecure-requests": null,
-        "style-src": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-        "font-src": ["'self'", "https://fonts.gstatic.com"],
+        'upgrade-insecure-requests': null,
+        'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+        'font-src': ["'self'", 'https://fonts.gstatic.com'],
       },
     },
   })
@@ -87,10 +91,13 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
       counter++;
     }
 
-
-
     const finalPath = path.join(uploadDir, finalFilename);
     fs.renameSync(tempPath, finalPath);
+
+    // Trigger embeddings indexing in the background asynchronously
+    indexFile(finalFilename, finalPath).catch((err) => {
+      console.error(`Background indexing failed for ${finalFilename}:`, err);
+    });
 
     res.status(201).json({ filename: finalFilename });
   } catch (error) {
@@ -114,9 +121,10 @@ app.delete('/api/files/:filename', (req, res) => {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const deletedFilename = `${base}_${timestamp}${ext}`;
 
-
-
     fs.renameSync(filePath, path.join(deletedDir, deletedFilename));
+
+    // Remove embeddings from database
+    removeFileFromIndex(filename);
 
     res.json({ message: 'File deleted successfully', filename: deletedFilename });
   } catch (error) {
@@ -125,6 +133,98 @@ app.delete('/api/files/:filename', (req, res) => {
   }
 });
 
-app.listen(port, '0.0.0.0', () => {
-  console.log(`Server listening on http://0.0.0.0:${port}`);
+// Retrieve all stored files and their indexing status
+app.get('/api/files', (req, res) => {
+  try {
+    const files = fs.readdirSync(uploadDir).filter((file) => file.endsWith('.md'));
+    const indexed = listIndexedFiles();
+    const indexedMap = new Map(indexed.map((f) => [f.filename, f]));
+
+    const fileList = files.map((filename) => {
+      const filePath = path.join(uploadDir, filename);
+      const stats = fs.statSync(filePath);
+      const idxInfo = indexedMap.get(filename) || {
+        status: 'pending',
+        chunkCount: 0,
+        error: null,
+        indexedAt: null,
+      };
+      return {
+        filename,
+        size: stats.size,
+        createdAt: stats.birthtime,
+        status: idxInfo.status,
+        chunkCount: idxInfo.chunkCount,
+        error: idxInfo.error,
+        indexedAt: idxInfo.indexedAt,
+      };
+    });
+
+    fileList.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    res.json(fileList);
+  } catch (error) {
+    console.error('List files error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Perform semantic search
+app.post('/api/search', async (req, res) => {
+  const { query, limit = 5 } = req.body;
+  if (!query || typeof query !== 'string') {
+    return res.status(400).json({ error: 'Query string is required' });
+  }
+
+  try {
+    const connection = await checkOllamaConnection();
+    if (!connection.online) {
+      return res.status(503).json({
+        error: 'Ollama server is offline or unreachable',
+        details: connection.error,
+      });
+    }
+
+    console.log(`Performing semantic search for query: "${query}"`);
+    const queryEmbedding = await generateEmbedding(query);
+    const matches = searchIndex(queryEmbedding, limit);
+    res.json({ query, matches });
+  } catch (error) {
+    console.error('Semantic search error:', error);
+    res.status(500).json({
+      error: 'Failed to perform semantic search',
+      details: error.message,
+    });
+  }
+});
+
+// Get Ollama service connection status
+app.get('/api/ollama/status', async (req, res) => {
+  try {
+    const status = await checkOllamaConnection();
+    res.json(status);
+  } catch (error) {
+    console.error('Ollama status error:', error);
+    res.status(500).json({ error: 'Failed to fetch Ollama status', details: error.message });
+  }
+});
+
+// Re-index a specific file
+app.post('/api/files/:filename/reindex', (req, res) => {
+  const { filename } = req.params;
+  const filePath = path.join(uploadDir, filename);
+
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: 'File not found' });
+  }
+
+  // Trigger indexing asynchronously
+  indexFile(filename, filePath).catch((err) => {
+    console.error(`Background reindexing failed for ${filename}:`, err);
+  });
+
+  res.json({ message: 'Reindexing started successfully', filename });
+});
+
+app.listen(port, '127.0.0.1', () => {
+  console.log(`Server listening on http://127.0.0.1:${port}`);
 });

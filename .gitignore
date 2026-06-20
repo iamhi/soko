@@ -6,6 +6,7 @@ yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
 .pnpm-debug.log*
+nohup.out
 
 # Dependencies
 node_modules/
@@ -20,6 +21,7 @@ vault.sqlite
 /uploads/
 /temp/
 /deleted/
+/db/
 
 # Environment variables
 .env
@@ -40,3 +42,6 @@ vault.sqlite
 # OS Files
 .DS_Store
 Thumbs.db
+
+# Runtime files
+*.pid
