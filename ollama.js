@@ -28,8 +28,6 @@ export async function checkOllamaConnection() {
 
 /**
  * Generate embedding vector for a given text prompt.
- * @param {string} text
- * @returns {Promise<number[]>}
  */
 export async function generateEmbedding(text) {
   const host = OLLAMA_HOST.replace(/\/$/, '');

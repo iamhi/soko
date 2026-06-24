@@ -43,7 +43,15 @@
       </section>
 
       <main>
-        <!-- Semantic Search Section -->
+        <!-- Tabs Navigation -->
+        <nav class="tabs" style="margin-bottom: 1.5rem;">
+          <button class="tab-btn active" data-tab="search-tab">Search</button>
+          <button class="tab-btn" data-tab="documents-tab">Documents</button>
+          <button class="tab-btn" data-tab="add-tab">Add Document</button>
+        </nav>
+
+        <div class="tab-content active" id="search-tab">
+          <!-- Semantic Search Section -->
         <section class="glass-panel search-section">
           <h2>
             <svg
@@ -85,7 +93,10 @@
           <div id="search-results" class="results-container"></div>
         </section>
 
-        <!-- Document list section -->
+        </div>
+
+        <div class="tab-content" id="documents-tab">
+          <!-- Document list section -->
         <section class="glass-panel files-section">
           <h2>
             <svg
@@ -112,7 +123,10 @@
           </div>
         </section>
 
-        <!-- Ingestion Forms Grid -->
+        </div>
+
+        <div class="tab-content" id="add-tab">
+          <!-- Ingestion Forms Grid -->
         <div class="form-row">
           <section class="glass-panel text-section">
             <h2>Create from Text</h2>
@@ -161,6 +175,7 @@
               <div id="upload-status" class="status-msg"></div>
             </form>
           </section>
+        </div>
         </div>
       </main>
     </div>
