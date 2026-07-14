@@ -120,6 +120,8 @@ export function listIndexedFiles() {
       filename,
       status: info.status,
       chunkCount: info.chunks ? info.chunks.length : 0,
+      processedChunks: info.processedChunks || 0,
+      totalChunks: info.totalChunks || 0,
       error: info.error || null,
       indexedAt: info.indexedAt || null,
     });
@@ -136,6 +138,8 @@ export async function indexFile(filename, filePath) {
     status: 'indexing',
     indexedAt: new Date().toISOString(),
     chunks: [],
+    processedChunks: 0,
+    totalChunks: 0,
   };
   saveDatabaseSync();
 
@@ -153,15 +157,25 @@ export async function indexFile(filename, filePath) {
       return;
     }
 
+    db.files[filename].totalChunks = chunks.length;
     const indexedChunks = [];
     for (let i = 0; i < chunks.length; i++) {
+      if (!db.files[filename] || db.files[filename].status !== 'indexing') {
+        console.log(`[${new Date().toISOString()}] Indexing loop aborted for ${filename}.`);
+        return;
+      }
       const chunkTextContent = chunks[i];
-      console.log(`Generating embedding for ${filename} chunk ${i + 1}/${chunks.length}...`);
+      const startTime = Date.now();
+      console.log(`[${new Date().toISOString()}] Generating embedding for ${filename} chunk ${i + 1}/${chunks.length}...`);
       const embedding = await generateEmbedding(chunkTextContent);
+      const timeTaken = Date.now() - startTime;
+      console.log(`[${new Date().toISOString()}] Chunk ${i + 1} completed in ${timeTaken}ms.`);
       indexedChunks.push({
         text: chunkTextContent,
         embedding,
       });
+      db.files[filename].processedChunks = i + 1;
+      saveDatabaseSync();
     }
 
     db.files[filename] = {
@@ -170,9 +184,9 @@ export async function indexFile(filename, filePath) {
       chunks: indexedChunks,
     };
     saveDatabaseSync();
-    console.log(`Successfully indexed ${filename} (${chunks.length} chunks)`);
+    console.log(`[${new Date().toISOString()}] Successfully indexed ${filename} (${chunks.length} chunks)`);
   } catch (error) {
-    console.error(`Failed to index file ${filename}:`, error);
+    console.error(`[${new Date().toISOString()}] Failed to index file ${filename}:`, error);
     db.files[filename] = {
       status: 'failed',
       indexedAt: new Date().toISOString(),
@@ -191,6 +205,18 @@ export function removeFileFromIndex(filename) {
     delete db.files[filename];
     saveDatabaseSync();
     console.log(`Removed ${filename} from embeddings database.`);
+  }
+}
+
+/**
+ * Cancel indexing for a file.
+ */
+export function cancelIndexing(filename) {
+  if (db.files[filename] && db.files[filename].status === 'indexing') {
+    db.files[filename].status = 'failed';
+    db.files[filename].error = 'Cancelled by user';
+    saveDatabaseSync();
+    console.log(`[${new Date().toISOString()}] Cancelled indexing for ${filename}.`);
   }
 }
 

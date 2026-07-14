@@ -8,7 +8,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
-import { listIndexedFiles, indexFile, removeFileFromIndex, searchIndex } from './db.js';
+import { listIndexedFiles, indexFile, removeFileFromIndex, searchIndex, cancelIndexing } from './db.js';
 import { checkOllamaConnection, generateEmbedding } from './ollama.js';
 
 dotenv.config();
@@ -107,6 +107,17 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
   }
 });
 
+app.get('/api/files/:filename', (req, res) => {
+  const { filename } = req.params;
+  const filePath = path.join(uploadDir, filename);
+
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: 'File not found' });
+  }
+
+  res.sendFile(filePath);
+});
+
 app.delete('/api/files/:filename', (req, res) => {
   const { filename } = req.params;
   const filePath = path.join(uploadDir, filename);
@@ -155,6 +166,8 @@ app.get('/api/files', (req, res) => {
         createdAt: stats.birthtime,
         status: idxInfo.status,
         chunkCount: idxInfo.chunkCount,
+        processedChunks: idxInfo.processedChunks,
+        totalChunks: idxInfo.totalChunks,
         error: idxInfo.error,
         indexedAt: idxInfo.indexedAt,
       };
@@ -223,6 +236,12 @@ app.post('/api/files/:filename/reindex', (req, res) => {
   });
 
   res.json({ message: 'Reindexing started successfully', filename });
+});
+
+app.post('/api/files/:filename/stop', (req, res) => {
+  const { filename } = req.params;
+  cancelIndexing(filename);
+  res.json({ message: 'Indexing stopped successfully', filename });
 });
 
 app.listen(port, '127.0.0.1', () => {

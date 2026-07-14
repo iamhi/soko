@@ -143,7 +143,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 file.createdAt
               )}">✓ ${file.chunkCount} Chunks</span>`
             : file.status === 'indexing'
-              ? `<span class="badge badge-indexing">Indexing</span>`
+              ? `<span class="badge badge-indexing">Indexing${file.totalChunks ? ` ${file.processedChunks}/${file.totalChunks}` : ''}</span>`
               : file.status === 'failed'
                 ? `<span class="badge badge-failed" title="Indexing Error: ${
                     file.error || 'Unknown error'
@@ -167,8 +167,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="file-status-and-actions">
                         ${statusBadge}
                         <div class="file-actions">
-                            <button class="btn secondary-btn compact-btn reindex-btn" data-filename="${file.filename}" ${file.status === 'indexing' ? 'disabled' : ''} title="Re-index this file">
+                            ${file.status === 'indexing' ? `
+                            <button class="btn danger-btn compact-btn stop-btn" data-filename="${file.filename}" title="Stop Indexing">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>
+                            </button>` : `
+                            <button class="btn secondary-btn compact-btn reindex-btn" data-filename="${file.filename}" title="Re-index this file">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                            </button>`}
+                            <button class="btn secondary-btn compact-btn open-btn" data-filename="${file.filename}" title="Open file">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
                             </button>
                             <button class="btn danger-btn compact-btn delete-btn" data-filename="${file.filename}" title="Delete file">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
@@ -178,6 +185,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 `;
 
         // Add button listeners
+        card.querySelector('.open-btn').addEventListener('click', (e) => {
+          const btn = e.currentTarget;
+          const filename = btn.getAttribute('data-filename');
+          window.open(`/api/files/${encodeURIComponent(filename)}`, '_blank');
+        });
+
         card.querySelector('.delete-btn').addEventListener('click', async (e) => {
           const btn = e.currentTarget;
           const filename = btn.getAttribute('data-filename');
@@ -201,31 +214,57 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         });
 
-        card.querySelector('.reindex-btn').addEventListener('click', async (e) => {
-          const btn = e.currentTarget;
-          const filename = btn.getAttribute('data-filename');
-          btn.disabled = true;
-          try {
-            const res = await fetch(`/api/files/${encodeURIComponent(filename)}/reindex`, {
-              method: 'POST',
-            });
-            if (res.ok) {
-              loadFiles();
-            } else {
-              const data = await res.json();
-              alert(data.error || 'Re-index failed');
+        const stopBtn = card.querySelector('.stop-btn');
+        if (stopBtn) {
+          stopBtn.addEventListener('click', async (e) => {
+            const btn = e.currentTarget;
+            const filename = btn.getAttribute('data-filename');
+            btn.disabled = true;
+            try {
+              const res = await fetch(`/api/files/${encodeURIComponent(filename)}/stop`, {
+                method: 'POST',
+              });
+              if (res.ok) {
+                loadFiles();
+              } else {
+                const data = await res.json();
+                alert(data.error || 'Stop failed');
+              }
+            } catch (err) {
+              alert(err.message);
+              btn.disabled = false;
             }
-          } catch (err) {
-            alert(err.message);
-          }
-        });
+          });
+        }
+
+        const reindexBtn = card.querySelector('.reindex-btn');
+        if (reindexBtn) {
+          reindexBtn.addEventListener('click', async (e) => {
+            const btn = e.currentTarget;
+            const filename = btn.getAttribute('data-filename');
+            btn.disabled = true;
+            try {
+              const res = await fetch(`/api/files/${encodeURIComponent(filename)}/reindex`, {
+                method: 'POST',
+              });
+              if (res.ok) {
+                loadFiles();
+              } else {
+                const data = await res.json();
+                alert(data.error || 'Re-index failed');
+              }
+            } catch (err) {
+              alert(err.message);
+            }
+          });
+        }
 
         filesListContainer.appendChild(card);
       });
 
       // Set auto refresh interval if indexing
       if (needsRefresh) {
-        setTimeout(loadFiles, 3000);
+        setTimeout(loadFiles, 60000);
       }
     } catch (error) {
       filesListContainer.innerHTML = `<div class="status-error" style="text-align:center; padding: 1rem;">Failed to load vault documents: ${error.message}</div>`;
